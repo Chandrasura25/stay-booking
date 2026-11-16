@@ -1,0 +1,15 @@
+{
+  "name": "stay-booking",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Booking core for small independent stays: availability the database enforces, holds, signed idempotent payment webhooks, iCal sync, search.",
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "serve": "tsx src/server.ts"
+  },
+  "engines": { "node": ">=22" },
+  "dependencies": { "@electric-sql/pglite": "^0.3.0" },
+  "devDependencies": { "@types/node": "^22.13.1", "tsx": "^4.19.0", "typescript": "5.6.3", "vitest": "^2.1.0" }
+}
