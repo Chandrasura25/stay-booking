@@ -1,6 +1,6 @@
 # stay-booking
 
-The booking core for a small-stays marketplace (surf camps, boutique hotels, retreats): availability, holds, payments, calendar sync and search. TypeScript on Postgres. 24 tests.
+The booking core for a small-stays marketplace (surf camps, boutique hotels, retreats): availability, holds, payments, calendar sync and search. TypeScript on Postgres, with a small web page to try it. 30 tests.
 
 It exists to answer one question: **how do you make double-booking impossible rather than unlikely?**
 
@@ -24,10 +24,26 @@ exclude using gist (room_id with =, during with &&) where (status in ('held','co
 | Search | Free for the whole range, by guests, price, amenities, city; cheapest first | each filter, expired holds don't block |
 | iCal | Export a room's bookings (no guest details); import another calendar's blocks, idempotent by UID; collisions are reported, not forced | export, import, re-import, conflict, folded lines, round trip |
 
-## Run
+## Try it
 
 ```
 npm install
+npm run serve      # http://localhost:3000
+```
+
+Search by dates, guests, price, city and amenity. Hold a room, then:
+
+- **Simulate payment** sends a signed event to the real webhook handler and the booking confirms.
+- **Deliver same payment again** sends the same event id: it is ignored and nothing changes.
+- **Send forged webhook** shows a bad signature being rejected.
+- **Try to double-book** asks for the same room and dates as a second guest and gets a 409 from the database constraint.
+- The availability calendar and a downloadable iCal feed update as you go. **Reset demo data** starts over.
+
+The payment buttons are a stand-in for a payment provider (the server signs the event with a demo secret). The database is in memory and thrown away on restart.
+
+## Test
+
+```
 npm test
 npm run typecheck
 ```
@@ -38,4 +54,4 @@ Postgres runs in-process through [PGlite](https://pglite.dev), so there is nothi
 
 - The webhook uses a Stripe-**style** signature scheme with a shared secret. It is not wired to a live Stripe account.
 - PGlite is a single in-process connection, so the "10 simultaneous requests" test shows the constraint rejects the losers, not a true multi-connection race. Against a real Postgres server the same exclusion constraint serialises concurrent inserts.
-- No UI, auth, or host dashboard yet. This is the part that is hardest to get right, so it came first.
+- The page is a demo harness, not a product UI. There is no auth, no host dashboard, and data does not persist. The booking core came first because it is the part that is hardest to get right.

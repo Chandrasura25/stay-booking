@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stay Booking Demo</title>
+<style>
+  :root { --bg:#faf7f2; --card:#fff; --ink:#1d2a2a; --muted:#66706f; --line:#e6e0d6; --accent:#0f6f6a; --accent-ink:#fff; --bad:#b4372f; --ok:#2d7a3e; --warn:#a86a00; --shade:#efe9dd; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#14191a; --card:#1c2324; --ink:#e8eeee; --muted:#93a09f; --line:#2c3637; --accent:#4cc3bb; --accent-ink:#0b1514; --bad:#ef7a70; --ok:#6fcf86; --warn:#e3a43c; --shade:#273031; }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; }
+  .wrap { max-width:1040px; margin:0 auto; padding:24px 16px 64px; }
+  h1 { font-size:1.6rem; margin:0 0 4px; }
+  .sub { color:var(--muted); margin:0 0 20px; max-width:62ch; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; }
+  form.search { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; align-items:end; }
+  label { display:flex; flex-direction:column; font-size:.8rem; color:var(--muted); gap:4px; }
+  input, select { font:inherit; color:var(--ink); background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:9px 10px; min-width:0; }
+  button { font:inherit; cursor:pointer; border-radius:8px; border:1px solid var(--accent); background:var(--accent); color:var(--accent-ink); padding:9px 14px; }
+  button.ghost { background:transparent; color:var(--accent); }
+  button:disabled { opacity:.5; cursor:not-allowed; }
+  .cols { display:grid; grid-template-columns:minmax(0,1.5fr) minmax(0,1fr); gap:16px; margin-top:16px; }
+  @media (max-width:820px) { .cols { grid-template-columns:1fr; } }
+  .room { display:flex; justify-content:space-between; gap:12px; padding:14px 0; border-top:1px solid var(--line); }
+  .room:first-child { border-top:0; }
+  .room h3 { margin:0; font-size:1.05rem; }
+  .meta { color:var(--muted); font-size:.85rem; }
+  .tags { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
+  .tag { font-size:.75rem; background:var(--shade); border-radius:99px; padding:2px 9px; }
+  .price { text-align:right; white-space:nowrap; }
+  .price b { font-size:1.15rem; }
+  .empty { color:var(--muted); padding:8px 0; }
+  .status { font-weight:600; }
+  .held { color:var(--warn); } .confirmed { color:var(--ok); } .cancelled { color:var(--bad); }
+  .row { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+  .log { font:12.5px/1.5 ui-monospace,Consolas,monospace; max-height:220px; overflow:auto; background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:8px 10px; margin-top:10px; }
+  .log div { padding:1px 0; } .log .e { color:var(--bad); } .log .g { color:var(--ok); }
+  .cal { display:grid; grid-template-columns:repeat(7,1fr); gap:3px; margin-top:8px; font-size:.78rem; text-align:center; }
+  .cal .h { color:var(--muted); }
+  .cal .d { padding:5px 0; border-radius:6px; background:var(--bg); border:1px solid transparent; }
+  .cal .d.b { background:var(--shade); color:var(--muted); text-decoration:line-through; }
+  .cal .d.sel { border-color:var(--accent); }
+  .cal .d.x { visibility:hidden; }
+  h2 { font-size:1rem; margin:0 0 6px; }
+  .note { color:var(--muted); font-size:.82rem; }
+  a { color:var(--accent); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Stay Booking Demo</h1>
+  <p class="sub">The booking core for small independent stays. Search, hold, pay and try to double-book a room. The overlap rule lives in Postgres, not in this page. Everything here runs against a throwaway in-memory database.</p>
+
+  <form class="search card" id="f">
+    <label>Check-in <input type="date" id="ci" required></label>
+    <label>Check-out <input type="date" id="co" required></label>
+    <label>Guests <input type="number" id="guests" min="1" max="6" value="2"></label>
+    <label>Max per night ($) <input type="number" id="max" min="0" placeholder="any"></label>
+    <label>City
+      <select id="city"><option value="">Any</option><option>Taghazout</option><option>Lisbon</option><option>Ericeira</option></select>
+    </label>
+    <label>Amenity
+      <select id="amen"><option value="">Any</option><option>wifi</option><option>breakfast</option><option>kitchen</option><option>yoga</option><option>surf lessons</option><option>balcony</option></select>
+    </label>
+    <button type="submit">Search</button>
+  </form>
+  <div id="err" class="note" style="color:var(--bad);margin-top:8px" role="alert"></div>
+
+  <div class="cols">
+    <div class="card">
+      <h2>Available rooms</h2>
+      <div id="results"><div class="empty">Pick dates and search.</div></div>
+    </div>
+    <div style="display:grid;gap:16px;align-content:start">
+      <div class="card" id="bk">
+        <h2>Your booking</h2>
+        <div class="empty">Hold a room to see it here.</div>
+      </div>
+      <div class="card">
+        <h2>Availability <span class="note" id="calname"></span></h2>
+        <div class="note">Struck-through days are taken. Check-out day is free for the next guest.</div>
+        <div id="calhead" class="note" style="margin-top:6px"></div>
+        <div class="cal" id="cal"></div>
+        <div class="row"><a id="ics" href="#" style="display:none">Download iCal feed</a></div>
+      </div>
+      <div class="card">
+        <h2>What just happened</h2>
+        <div class="log" id="log"><div>Nothing yet.</div></div>
+        <div class="row"><button class="ghost" id="reset" type="button">Reset demo data</button></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const money = (c) => "$" + (c / 100).toFixed(2).replace(/\.00$/, "");
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+const iso = (d) => d.toISOString().slice(0, 10);
+
+let current = null;       // {bookingId, roomId, roomName, checkIn, checkOut, totalCents, expires}
+let timer = null;
+let calRoom = null;
+
+function log(msg, cls = "") {
+  const el = $("log");
+  if (el.firstChild && el.firstChild.textContent === "Nothing yet.") el.innerHTML = "";
+  const d = document.createElement("div");
+  if (cls) d.className = cls;
+  d.textContent = new Date().toLocaleTimeString() + "  " + msg;
+  el.prepend(d);
+}
+
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  const ct = r.headers.get("content-type") || "";
+  const body = ct.includes("json") ? await r.json() : await r.text();
+  return { ok: r.ok, status: r.status, body };
+}
+const post = (path, data) => api(path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(data ?? {}) });
+
+async function search(e) {
+  if (e) e.preventDefault();
+  $("err").textContent = "";
+  const q = new URLSearchParams({ checkIn: $("ci").value, checkOut: $("co").value, guests: $("guests").value });
+  if ($("max").value) q.set("maxPrice", $("max").value);
+  if ($("city").value) q.set("city", $("city").value);
+  if ($("amen").value) q.set("amenities", $("amen").value);
+  const r = await api("/api/search?" + q);
+  if (!r.ok) { $("err").textContent = r.body.error || "Search failed"; return; }
+  const rooms = r.body.rooms;
+  $("results").innerHTML = rooms.length ? rooms.map((x) => `
+    <div class="room">
+      <div>
+        <h3>${esc(x.room)}</h3>
+        <div class="meta">${esc(x.property)} · ${esc(x.city)} · sleeps ${x.capacity}</div>
+        <div class="tags">${x.amenities.map((a) => `<span class="tag">${esc(a)}</span>`).join("")}</div>
+      </div>
+      <div class="price"><b>${money(x.totalCents)}</b><div class="meta">${x.nights} night${x.nights > 1 ? "s" : ""} · ${money(x.nightly_cents)}/night</div>
+        <div class="row" style="justify-content:flex-end">
+          <button class="ghost" data-cal="${x.room_id}" data-name="${esc(x.room)}">Calendar</button>
+          <button data-hold="${x.room_id}" data-name="${esc(x.room)}">Hold</button>
+        </div>
+      </div>
+    </div>`).join("") : `<div class="empty">No rooms free for those dates and filters.</div>`;
+  log(`search ${$("ci").value} to ${$("co").value}: ${rooms.length} room(s) free`);
+}
+
+async function hold(roomId, name) {
+  const r = await post("/api/hold", { roomId, guestEmail: "guest@example.com", guests: Number($("guests").value || 1), checkIn: $("ci").value, checkOut: $("co").value });
+  if (!r.ok) {
+    log(`hold refused (${r.status}): ${r.body.error}`, "e");
+    $("err").textContent = r.body.error;
+    await search(); showCal(roomId, name);
+    return;
+  }
+  $("err").textContent = "";
+  current = { ...r.body, roomId, roomName: name, checkIn: $("ci").value, checkOut: $("co").value, status: "held" };
+  log(`hold placed on ${name}: booking #${r.body.bookingId}, 15 minutes to pay`, "g");
+  renderBooking(); await search(); showCal(roomId, name);
+}
+
+function renderBooking() {
+  clearInterval(timer);
+  const b = current;
+  if (!b) { $("bk").innerHTML = `<h2>Your booking</h2><div class="empty">Hold a room to see it here.</div>`; return; }
+  $("bk").innerHTML = `
+    <h2>Your booking #${b.bookingId}</h2>
+    <div><b>${esc(b.roomName)}</b> · ${esc(b.checkIn)} to ${esc(b.checkOut)} · ${money(b.totalCents)}</div>
+    <div>Status: <span class="status ${esc(b.status)}" id="st">${esc(b.status)}</span> <span class="note" id="cd"></span></div>
+    <div class="row">
+      <button id="pay">Simulate payment</button>
+      <button class="ghost" id="payAgain">Deliver same payment again</button>
+      <button class="ghost" id="forge">Send forged webhook</button>
+      <button class="ghost" id="dbl">Try to double-book</button>
+    </div>
+    <div class="note" style="margin-top:8px">The payment buttons stand in for a payment provider: a signed event goes to the real webhook handler.</div>`;
+  $("pay").onclick = () => pay("payment");
+  $("payAgain").onclick = () => pay("again");
+  $("forge").onclick = forge;
+  $("dbl").onclick = doubleBook;
+  const tick = () => {
+    if (current.status !== "held") { $("cd").textContent = ""; return; }
+    const s = Math.max(0, Math.round((new Date(current.holdExpiresAt) - Date.now()) / 1000));
+    $("cd").textContent = s > 0 ? `(hold expires in ${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")})` : "(hold expired, dates released)";
+  };
+  tick(); timer = setInterval(tick, 1000);
+}
+
+async function pay(kind) {
+  const r = await post("/api/demo/pay", { bookingId: current.bookingId });
+  const res = r.body.result?.status;
+  if (r.body.booking) current.status = r.body.booking.status;
+  const msg = { confirmed: "payment event accepted: booking confirmed", duplicate: "same event delivered again: ignored, nothing changed", needs_refund: "payment arrived after the hold lapsed: flagged for refund, not re-booked", amount_mismatch: "amount did not match: not confirmed" }[res] || res;
+  log(`webhook -> ${msg}`, res === "confirmed" ? "g" : res === "duplicate" ? "g" : "e");
+  renderBooking();
+}
+
+async function forge() {
+  const r = await post("/api/demo/bad-webhook");
+  log(`forged webhook -> ${r.body.result.status}: ${r.body.result.reason}`, "e");
+}
+
+async function doubleBook() {
+  const r = await post("/api/hold", { roomId: current.roomId, guestEmail: "someone.else@example.com", guests: 1, checkIn: current.checkIn, checkOut: current.checkOut });
+  log(r.ok ? "unexpected: second booking accepted" : `second guest, same dates -> ${r.status} ${r.body.error}`, r.ok ? "e" : "g");
+}
+
+async function showCal(roomId, name) {
+  calRoom = roomId;
+  $("calname").textContent = "· " + name;
+  const r = await api(`/api/rooms/${roomId}/stays`);
+  const taken = new Set();
+  for (const s of r.body.stays) for (let d = new Date(s.check_in + "T00:00:00Z"); iso(d) < s.check_out; d.setUTCDate(d.getUTCDate() + 1)) taken.add(iso(d));
+  const start = new Date($("ci").value + "T00:00:00Z"), end = new Date($("co").value + "T00:00:00Z");
+  const first = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), 1));
+  $("calhead").textContent = first.toLocaleDateString(undefined, { month: "long", year: "numeric", timeZone: "UTC" });
+  const days = new Date(Date.UTC(first.getUTCFullYear(), first.getUTCMonth() + 1, 0)).getUTCDate();
+  let html = ["Mo","Tu","We","Th","Fr","Sa","Su"].map((d) => `<div class="h">${d}</div>`).join("");
+  html += `<div class="d x"></div>`.repeat((first.getUTCDay() + 6) % 7);
+  for (let i = 1; i <= days; i++) {
+    const d = new Date(Date.UTC(first.getUTCFullYear(), first.getUTCMonth(), i)), k = iso(d);
+    html += `<div class="d${taken.has(k) ? " b" : ""}${d >= start && d < end ? " sel" : ""}">${i}</div>`;
+  }
+  $("cal").innerHTML = html;
+  const a = $("ics"); a.href = `/api/rooms/${roomId}.ics`; a.style.display = "inline"; a.textContent = "Download iCal feed for this room";
+}
+
+$("results").addEventListener("click", (e) => {
+  const h = e.target.closest("[data-hold]"), c = e.target.closest("[data-cal]");
+  if (h) hold(Number(h.dataset.hold), h.dataset.name);
+  if (c) showCal(Number(c.dataset.cal), c.dataset.name);
+});
+$("reset").onclick = async () => { await post("/api/demo/reset"); current = null; renderBooking(); $("cal").innerHTML = ""; $("calhead").textContent = ""; log("demo data reset"); await search(); };
+$("f").addEventListener("submit", search);
+
+const t = new Date(); t.setUTCDate(t.getUTCDate() + 30);
+const t2 = new Date(t); t2.setUTCDate(t2.getUTCDate() + 4);
+$("ci").value = iso(t); $("co").value = iso(t2);
+$("ci").min = iso(new Date());
+search();
+</script>
+</body>
+</html>
