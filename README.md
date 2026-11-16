@@ -4,6 +4,8 @@ The booking core for a small-stays marketplace (surf camps, boutique hotels, ret
 
 It exists to answer one question: **how do you make double-booking impossible rather than unlikely?**
 
+**Live demo: https://stay-booking-blush.vercel.app**
+
 ## The idea
 
 A room cannot have two active stays that overlap, and the *database* enforces it, not the app:
@@ -38,6 +40,8 @@ Search by dates, guests, price, city and amenity. Hold a room, then:
 - **Send forged webhook** shows a bad signature being rejected.
 - **Try to double-book** asks for the same room and dates as a second guest and gets a 409 from the database constraint.
 - The availability calendar and a downloadable iCal feed update as you go. **Reset demo data** starts over.
+
+On the live demo the data lives in memory on one serverless instance, so it can reset if the page has been idle for a while. If a button says a booking no longer exists, press **Reset demo data** and start again.
 
 The payment buttons are a stand-in for a payment provider (the server signs the event with a demo secret). The database is in memory and thrown away on restart.
 

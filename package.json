@@ -7,7 +7,7 @@
   "scripts": {
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "serve": "tsx src/server.ts"
+    "serve": "tsx src/dev.ts"
   },
   "engines": { "node": ">=22" },
   "dependencies": { "@electric-sql/pglite": "^0.3.0" },
